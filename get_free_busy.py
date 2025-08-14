@@ -53,7 +53,7 @@ HTML_CONFIRMATION_TEMPLATE = """ ... """
 # --- 補助関数 ---
 def get_credentials():
     """サービスアカウントの認証情報を取得する"""
-    SERVICE_ACCOUNT_FILE = 'service-account-key.json' # あなたが保存したJSONファイル名
+    SERVICE_ACCOUNT_FILE = 'schedule-adjustment-service-account-key.json' # あなたが保存したJSONファイル名
     creds = service_account.Credentials.from_service_account_file(
         SERVICE_ACCOUNT_FILE, scopes=SCOPES)
     return creds
@@ -240,3 +240,4 @@ if __name__ == '__main__':
         print("アプリケーションを起動します...")
         # Renderではapp.runは使われないが、ローカルテスト用に残す
         app.run(host='0.0.0.0', port=8080, debug=True)
+
