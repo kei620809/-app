@@ -54,7 +54,7 @@ def get_credentials():
     """サービスアカウントの認証情報を取得する"""
     
     # ★★★★★ ここにダウンロードしたサービスアカウントのJSONファイル名を設定 ★★★★★
-    SERVICE_ACCOUNT_FILE = 'service-account-key.json' # あなたが保存したJSONファイル名
+    SERVICE_ACCOUNT_FILE = 'schedule-adjustment-service-account-key.json' # あなたが保存したJSONファイル名
     # ★★★★★ 設定ここまで ★★★★★
     
     creds = service_account.Credentials.from_service_account_file(
@@ -241,3 +241,4 @@ if __name__ == '__main__':
         print("ブラウザで http://127.0.0.1:5000/ を開いてください。")
         print("特定のカレンダーを指定する場合は ?calendar=your_email@example.com をURLの末尾に追加します。")
         app.run(debug=True, port=5000)
+
