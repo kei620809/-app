@@ -42,7 +42,7 @@ SEARCH_DAYS_AHEAD = 7
 # タイムゾーン
 TIMEZONE = 'Asia/Tokyo'
 # サービスアカウントのキーファイル名
-SERVICE_ACCOUNT_FILE = 'service-account-key.json'
+SERVICE_ACCOUNT_FILE = 'schedule-adjustment-service-account-key.json'
 # --- 設定エリアここまで ---
 
 app = Flask(__name__)
@@ -360,3 +360,4 @@ if __name__ == '__main__':
         print("ブラウザで開いてください。")
         print("カレンダーを指定する場合は ?calendar=your_email@example.com をURLの末尾に追加します。")
         app.run(host='0.0.0.0', port=8080, debug=False)
+
