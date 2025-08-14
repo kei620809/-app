@@ -23,6 +23,8 @@ SCOPES = [
 # ★★★★★ 必ず設定してください ★★★★★
 # 予約通知を受け取る社内担当者のメールアドレス
 TO_EMAIL_ADDRESS = 'keiichiro.yoshino@bizreach.co.jp'
+# その他の固定の招待者がいればメールアドレスを記入
+# FIXED_ATTENDEE_EMAIL = 'another-fixed-email@example.com'
 # ★★★★★ 設定ここまで ★★★★★
 
 # 面談の時間（分）
@@ -39,21 +41,137 @@ WORKDAYS = [0, 1, 2, 3, 4]
 SEARCH_DAYS_AHEAD = 7
 # タイムゾーン
 TIMEZONE = 'Asia/Tokyo'
+# サービスアカウントのキーファイル名
+SERVICE_ACCOUNT_FILE = 'schedule-adjustment-service-account-key.json'
 # --- 設定エリアここまで ---
 
 app = Flask(__name__)
 
 # --- HTMLテンプレート ---
-# (HTML部分は変更ないため、ここでは省略します。お手元のコードのままで大丈夫です)
-HTML_TEMPLATE = """ ... """
-HTML_CONFIRM_PROMPT_TEMPLATE = """ ... """
-HTML_CONFIRMATION_TEMPLATE = """ ... """
-
+HTML_TEMPLATE = """
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>日程調整候補</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; max-width: 600px; margin: 2em auto; padding: 0 1em; background-color: #f9f9f9; }
+        h1 { color: #2c3e50; }
+        .day-section { margin-bottom: 2em; background-color: white; padding: 1em 1.5em; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        h2 { border-bottom: 2px solid #ecf0f1; padding-bottom: 0.5em; font-size: 1.2em; color: #34495e; }
+        .slots { display: flex; flex-wrap: wrap; gap: 0.8em; }
+        .slot-link { text-decoration: none; }
+        .slot-button {
+            background-color: #3498db; color: white; border: none; padding: 0.8em 1.2em;
+            border-radius: 5px; cursor: pointer; font-size: 1em; transition: all 0.2s ease;
+            display: block; width: 100%; text-align: center;
+        }
+        .slot-button:hover { background-color: #2980b9; transform: translateY(-2px); }
+        .no-slots { color: #7f8c8d; }
+    </style>
+</head>
+<body>
+    <h1>打ち合わせの候補日時</h1>
+    <p>ご希望の日時を選択してください。</p>
+    {% if slots_by_day %}
+        {% for day, slots in slots_by_day.items() %}
+            <div class="day-section">
+                <h2>{{ day }}</h2>
+                <div class="slots">
+                    {% for slot in slots %}
+                        <a href="/confirm?time={{ slot.isoformat() }}&calendar={{ calendar_id }}" class="slot-link">
+                            <button class="slot-button">{{ slot.strftime('%H:%M') }}</button>
+                        </a>
+                    {% endfor %}
+                </div>
+            </div>
+        {% endfor %}
+    {% else %}
+        <p class="no-slots">申し訳ありませんが、現在ご案内できる候補時間がありません。</p>
+    {% endif %}
+</body>
+</html>
+"""
+HTML_CONFIRM_PROMPT_TEMPLATE = """
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>予約内容の確認</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; padding: 2em 1em; background-color: #f9f9f9; }
+        .container { max-width: 500px; margin: 0 auto; background-color: white; padding: 2em; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        h1 { color: #2c3e50; text-align: center; }
+        p { color: #34495e; font-size: 1.2em; line-height: 1.6; text-align: center; }
+        strong { color: #2980b9; font-size: 1.3em; }
+        .form-group { margin-bottom: 1.5em; }
+        .form-group label { display: block; margin-bottom: 0.5em; color: #34495e; font-weight: bold; }
+        .form-group input { width: 100%; padding: 0.8em; border: 1px solid #ccc; border-radius: 4px; font-size: 1em; box-sizing: border-box; }
+        .actions { margin-top: 2em; display: flex; justify-content: center; gap: 1em; }
+        .button {
+            text-decoration: none; color: white; border: none; padding: 0.8em 2em;
+            border-radius: 5px; cursor: pointer; font-size: 1em; transition: all 0.2s ease;
+        }
+        .submit-button { background-color: #27ae60; }
+        .submit-button:hover { background-color: #229954; }
+        .cancel-link { background-color: #c0392b; text-align: center; }
+        .cancel-link:hover { background-color: #a93226; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>予約内容の入力</h1>
+        <p>以下の日時で予約します。<br><strong>{{ formatted_time }}</strong></p>
+        <p>お名前とメールアドレスを入力してください。</p>
+        <form action="/create_event" method="GET">
+            <input type="hidden" name="time" value="{{ iso_time }}">
+            <input type="hidden" name="calendar" value="{{ calendar_id }}">
+            <div class="form-group">
+                <label for="name">お名前</label>
+                <input type="text" id="name" name="name" required>
+            </div>
+            <div class="form-group">
+                <label for="email">メールアドレス</label>
+                <input type="email" id="email" name="email" required>
+            </div>
+            <div class="actions">
+                <button type="submit" class="button submit-button">この内容で予約する</button>
+                <a href="/?calendar={{ calendar_id }}" class="button cancel-link">キャンセル</a>
+            </div>
+        </form>
+    </div>
+</body>
+</html>
+"""
+HTML_CONFIRMATION_TEMPLATE = """
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>予約完了</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; text-align: center; padding: 4em 1em; background-color: #f9f9f9; }
+        .container { max-width: 500px; margin: 0 auto; background-color: white; padding: 2em; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        h1 { color: #27ae60; }
+        p { color: #34495e; font-size: 1.1em; }
+        a { color: #3498db; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🗓️ 予約が完了しました！</h1>
+        <p><strong>{{ event_time }}</strong> にて、カレンダーに予定を登録しました。</p>
+        <p>関係者の皆様に、Googleカレンダーの招待と確認メールを送信しましたので、ご確認ください。</p>
+        <p><a href="/?calendar={{ calendar_id }}">別の日時を選び直す</a></p>
+    </div>
+</body>
+</html>
+"""
 
 # --- 補助関数 ---
 def get_credentials():
     """サービスアカウントの認証情報を取得する"""
-    SERVICE_ACCOUNT_FILE = 'schedule-adjustment-service-account-key.json' # あなたが保存したJSONファイル名
     creds = service_account.Credentials.from_service_account_file(
         SERVICE_ACCOUNT_FILE, scopes=SCOPES)
     return creds
@@ -74,7 +192,6 @@ def find_available_slots(service, calendar_id):
     available_slots = []
 
     current_time = start_search_time.astimezone(tz)
-    # 候補時間の開始時刻を、次の30分または00分に丸める
     current_time += datetime.timedelta(minutes=TIME_STEP_MINUTES - current_time.minute % TIME_STEP_MINUTES)
 
     time_max = datetime.datetime.fromisoformat(time_max_utc_str).astimezone(tz)
@@ -171,16 +288,19 @@ def create_event():
         calendar_service = build('calendar', 'v3', credentials=creds)
         gmail_service = build('gmail', 'v1', credentials=creds)
 
-        # 担当社員名を取得
-        try:
-            # サービスアカウントは他のカレンダー情報を直接取得できない可能性があるため、
-            # カレンダーID（メールアドレス）をそのまま担当者名として利用する
-            employee_name = calendar_id
-        except Exception:
-            employee_name = calendar_id
+        employee_name = calendar_id # 担当者名はカレンダーID（メールアドレス）とする
 
         start_time = datetime.datetime.fromisoformat(time_str.replace(' ', '+'))
         end_time = start_time + datetime.timedelta(minutes=MEETING_DURATION_MINUTES)
+
+        # 招待者リストの作成
+        attendees = [
+            {'email': student_email}, # 予約者
+            {'email': calendar_id},   # 担当社員
+        ]
+        # もし固定の招待者が設定されていれば、リストに追加
+        if 'FIXED_ATTENDEE_EMAIL' in globals():
+            attendees.append({'email': FIXED_ATTENDEE_EMAIL})
 
         # カレンダーイベントの作成
         event = {
@@ -188,11 +308,7 @@ def create_event():
             'description': f'{student_name}様との面談です。\n担当: {employee_name}\nこの予定はPythonツールによって自動登録されました。',
             'start': {'dateTime': start_time.isoformat(), 'timeZone': TIMEZONE},
             'end': {'dateTime': end_time.isoformat(), 'timeZone': TIMEZONE},
-            'attendees': [
-                {'email': student_email},      # 予約者
-                {'email': calendar_id},        # 担当社員
-                # {'email': 'add-your-fixed-email@example.com'} # 必要なら他の固定アドレスも
-            ],
+            'attendees': attendees,
             'conferenceData': {
                 'createRequest': {
                     'requestId': uuid.uuid4().hex,
@@ -233,11 +349,11 @@ def create_event():
         return f"<h1>イベント作成中にエラーが発生しました</h1><hr><pre>{error_details}</pre>"
 
 if __name__ == '__main__':
-    SERVICE_ACCOUNT_FILE = 'service-account-key.json' # get_credentials内のファイル名と合わせる
     if not os.path.exists(SERVICE_ACCOUNT_FILE):
         print(f"エラー: サービスアカウントのキーファイル '{SERVICE_ACCOUNT_FILE}' が見つかりません。")
     else:
         print("アプリケーションを起動します...")
-        # Renderではapp.runは使われないが、ローカルテスト用に残す
-        app.run(host='0.0.0.0', port=8080, debug=True)
-
+        print(f"ローカルテスト用に http://127.0.0.1:8080/ で起動します。")
+        print("ブラウザで開いてください。")
+        print("カレンダーを指定する場合は ?calendar=your_email@example.com をURLの末尾に追加します。")
+        app.run(host='0.0.0.0', port=8080, debug=False) # デプロイを想定し、debug=Falseを推奨
