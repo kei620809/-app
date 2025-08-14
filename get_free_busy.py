@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+# -*- coding: utf--8 -*-
 import base64
 import datetime
 import os
@@ -42,7 +42,7 @@ SEARCH_DAYS_AHEAD = 7
 # タイムゾーン
 TIMEZONE = 'Asia/Tokyo'
 # サービスアカウントのキーファイル名
-SERVICE_ACCOUNT_FILE = 'schedule-adjustment-service-account-key.json'
+SERVICE_ACCOUNT_FILE = 'service-account-key.json'
 # --- 設定エリアここまで ---
 
 app = Flask(__name__)
@@ -293,16 +293,13 @@ def create_event():
         start_time = datetime.datetime.fromisoformat(time_str.replace(' ', '+'))
         end_time = start_time + datetime.timedelta(minutes=MEETING_DURATION_MINUTES)
 
-        # 招待者リストの作成
         attendees = [
-            {'email': student_email}, # 予約者
-            {'email': calendar_id},   # 担当社員
+            {'email': student_email},
+            {'email': calendar_id},
         ]
-        # もし固定の招待者が設定されていれば、リストに追加
         if 'FIXED_ATTENDEE_EMAIL' in globals():
             attendees.append({'email': FIXED_ATTENDEE_EMAIL})
 
-        # カレンダーイベントの作成
         event = {
             'summary': f'【面談】{student_name}様（担当: {employee_name}）',
             'description': f'{student_name}様との面談です。\n担当: {employee_name}\nこの予定はPythonツールによって自動登録されました。',
@@ -317,29 +314,35 @@ def create_event():
             }
         }
 
+        print("DEBUG: これからカレンダーイベントを作成します...")
         created_event = calendar_service.events().insert(
-            calendarId='primary', # 代理人(サービスアカウント)自身のカレンダーに作成
+            calendarId='primary',
             body=event,
             conferenceDataVersion=1,
-            sendNotifications=True # 招待状を送信する
+            sendNotifications=True
         ).execute()
+        print("DEBUG: カレンダーイベントの作成に成功しました。")
 
         meet_link = created_event.get('hangoutLink', '（Meetリンクは作成されませんでした）')
         formatted_time = start_time.strftime('%Y年%m月%d日(%a) %H:%M')
 
-        # メール送信
         sender_email = creds.service_account_email
-        # 学生への通知メール
+        
         subject_student = f"【予約完了】{formatted_time}からの面談のご案内"
         body_text_student = f"""{student_name}様\n\nこの度は、面談にご予約いただきありがとうございます。\n以下の内容でご予約を承りました。\n\n担当者: {employee_name}\n日時: {formatted_time}\n接続先URL: {meet_link}\n\n当日はどうぞよろしくお願いいたします。"""
         message_student = create_message(sender_email, student_email, subject_student, body_text_student)
+        
+        print("DEBUG: これから予約者にメールを送信します...")
         gmail_service.users().messages().send(userId='me', body=message_student).execute()
+        print("DEBUG: 予約者へのメール送信に成功しました。")
 
-        # 社内担当者への通知メール
         subject_internal = f"【面談予約通知】{student_name}様 - {formatted_time}"
         body_text_internal = f"""担当者様\n\n以下の日程で、{student_name}様との面談が予約されました。\n\n日時: {formatted_time}\n氏名: {student_name}\nメールアドレス: {student_email}\n担当社員: {employee_name}\n接続先URL: {meet_link}\n\nGoogleカレンダーに招待が送信されています。"""
         message_internal = create_message(sender_email, TO_EMAIL_ADDRESS, subject_internal, body_text_internal)
+        
+        print("DEBUG: これから社内担当者にメールを送信します...")
         gmail_service.users().messages().send(userId='me', body=message_internal).execute()
+        print("DEBUG: 社内担当者へのメール送信に成功しました。")
 
         return render_template_string(HTML_CONFIRMATION_TEMPLATE, event_time=formatted_time, calendar_id=calendar_id)
 
@@ -356,4 +359,4 @@ if __name__ == '__main__':
         print(f"ローカルテスト用に http://127.0.0.1:8080/ で起動します。")
         print("ブラウザで開いてください。")
         print("カレンダーを指定する場合は ?calendar=your_email@example.com をURLの末尾に追加します。")
-        app.run(host='0.0.0.0', port=8080, debug=False) # デプロイを想定し、debug=Falseを推奨
+        app.run(host='0.0.0.0', port=8080, debug=False)
